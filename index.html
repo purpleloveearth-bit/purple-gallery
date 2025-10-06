@@ -1,25 +1,92 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>My Google Drive Photo Gallery</title>
-<link href="https://cdnjs.cloudflare.com/ajax/libs/lightbox2/2.11.3/css/lightbox.min.css" rel="stylesheet">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Auto Google Drive Gallery</title>
+
+<!-- Lightbox2 for next/prev/zoom -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lightbox2/2.11.5/css/lightbox.min.css">
+
 <style>
-  body { font-family: Arial; background:#f5f5f5; text-align:center; }
-  h1 { color:#444; }
-  .gallery { display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:10px; padding:20px; }
-  img { width:100%; height:250px; object-fit:cover; border-radius:10px; transition:transform .3s; }
-  img:hover { transform:scale(1.05); }
+  :root { --bg:#0b0b0b; --fg:#eee; --accent:#8b5cf6; }
+  * { box-sizing:border-box }
+  body { margin:0; background:var(--bg); color:var(--fg); font-family:system-ui, Arial, sans-serif; }
+  header, footer { max-width:1200px; margin:0 auto; padding:16px; }
+  h1 { margin:0; font-size:1.25rem; color:var(--accent); }
+  .grid {
+    max-width:1200px; margin:0 auto; padding:12px 16px 40px;
+    display:grid; gap:12px; grid-template-columns:repeat(auto-fill,minmax(220px,1fr));
+  }
+  .tile { display:block; border-radius:12px; overflow:hidden; border:1px solid #222; transition:transform .15s; }
+  .tile:hover { transform: translateY(-2px); }
+  .tile img { width:100%; height:220px; object-fit:cover; display:block; background:#1a1a1a; }
+  .empty, .error { max-width:1200px; margin:24px auto; padding:12px 16px; opacity:.9; }
+  .empty { color:#bbb; }
+  .error { color:#ffb4b4; }
 </style>
 </head>
 <body>
-<h1>🐶 My Auto-updated Google Drive Gallery</h1>
-<div class="gallery">
-  <!-- 这里粘贴你在 Google Apps Script 得到的图片链接 -->
-  <a href="https://drive.google.com/uc?export=view&id=你的图片ID1" data-lightbox="gallery"><img src="https://drive.google.com/uc?export=view&id=你的图片ID1"></a>
-  <a href="https://drive.google.com/uc?export=view&id=你的图片ID2" data-lightbox="gallery"><img src="https://drive.google.com/uc?export=view&id=你的图片ID2"></a>
-</div>
+<header>
+  <h1>🐾 Auto Google Drive Gallery</h1>
+  <div class="empty" id="status">Loading photos…</div>
+</header>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/lightbox2/2.11.3/js/lightbox.min.js"></script>
+<main id="gallery" class="grid"></main>
+
+<footer>Powered by paw prints & love 💜</footer>
+
+<!-- Lightbox2 JS -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lightbox2/2.11.5/js/lightbox.min.js"></script>
+
+<script>
+/* JSONP callback — Apps Script must return: initGallery([{id:"...", name:"..."}]) */
+function initGallery(items){
+  const wrap = document.getElementById('gallery');
+  const status = document.getElementById('status');
+
+  if (!Array.isArray(items) || items.length === 0){
+    status.textContent = "No images found. Add photos to the Drive folder (and make them viewable to anyone with the link).";
+    return;
+  }
+  status.remove();
+
+  items.forEach(p => {
+    // full image (lightbox) + fast thumbnail (grid)
+    const full  = `https://drive.google.com/uc?export=view&id=${p.id}`;
+    const thumb = `https://drive.google.com/thumbnail?id=${p.id}&sz=w800`; // use w600 for lighter pages
+
+    const a = document.createElement('a');
+    a.className = 'tile';
+    a.href = full;
+    a.setAttribute('data-lightbox', 'purple');
+    a.setAttribute('data-title', (p.name || '').replace(/\.[^.]+$/,''));
+
+    const img = document.createElement('img');
+    img.src = thumb;
+    img.alt = p.name || 'Photo';
+    img.loading = 'lazy';
+
+    a.appendChild(img);
+    wrap.appendChild(a);
+  });
+
+  lightbox.option({ wrapAround:true, fadeDuration:120, imageFadeDuration:120, resizeDuration:120, positionFromTop:40 });
+}
+
+/* Fallback if JSONP never arrives (wrong URL or permissions) */
+setTimeout(() => {
+  const wrap = document.getElementById('gallery');
+  if (wrap.childElementCount === 0) {
+    const status = document.getElementById('status');
+    status.className = 'error';
+    status.innerHTML = "Couldn’t load images. Check that:<br>• You used the correct Apps Script Web App URL (ending in <code>/exec</code>) with <code>?callback=initGallery</code>.<br>• Web App access is set to <b>Anyone</b>.<br>• The Drive folder and files are <b>Anyone with the link – Viewer</b>.";
+  }
+}, 6000);
+</script>
+
+<!-- ⬇️ Replace with your Apps Script Web App URL -->
+<script src="https://script.google.com/macros/s/AKfycbxgiHiMq5eYYtO6KzcDU_zgEmev3TsRL3Ru10I1S8WOcD2OELxFiKkJvsO9ma5i_YYL/exec"></script>
 </body>
 </html>
+

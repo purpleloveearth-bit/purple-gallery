@@ -39,70 +39,94 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/lightbox2/2.11.5/js/lightbox.min.js"></script>
 
 <script>
-/* Your googleusercontent URL (works for fetch/CORS): */
+/* Your googleusercontent JSON endpoint (fetch/CORS) */
 const API_URL =
   "https://script.googleusercontent.com/macros/echo?user_content_key=AehSKLiVXG38utgTsOYe0175zggPzf9Q2ipKRn4QiVXuZMweoSDuSGDLHa0N-ZasQsPcHQROBV3tpfTI3LHIgs3997j_lAdNd3f3IFVS6lyFUr2qb2UDe9psSN1OuF0VKzFv-uXM-I9ZlK2CLi4qzgq7ZPHHn-7F4yS2ukdmOizEjQrL2o2zqbZLXJdt9-6MC2XIewPIxVqagRmQCNGyIlCZHCEkIIbZiL7w8qm3r6CsRk7lO0ryjjzDaqyhKztuIePMJFCUsxc1Ss0y1ICPznRrB6SdBiWX4A&lib=M_tSu8beZ3qYdOBC3NodhF7yTjQUW6d6j";
 
-/* Small cache (optional) */
 const CACHE_KEY = "driveGallery:v2";
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 const gallery = document.getElementById("gallery");
 const statusEl = document.getElementById("status");
 
-/* Normalize whatever the Apps Script returns into [{id,name}] */
+/* ---- utilities ---- */
 function normalize(data) {
-  console.log("Raw response:", data);
   let arr = [];
-
-  // common shapes
   if (Array.isArray(data)) arr = data;
   else if (Array.isArray(data.items)) arr = data.items;
   else if (Array.isArray(data.files)) arr = data.files;
   else if (data && Array.isArray(data.result)) arr = data.result;
   else if (data && data.data && Array.isArray(data.data)) arr = data.data;
 
-  // map to {id, name}
-  arr = arr.map(x => ({
+  return arr.map(x => ({
     id:   x.id || x.fileId || x.gid || x.ID || x.file_id,
     name: x.name || x.title || x.filename || ""
   })).filter(x => x.id);
-
-  console.log("Normalized items:", arr);
-  return arr;
 }
 
-/* Render tiles + Lightbox next/prev */
-function render(items = []) {
+/* Try multiple Drive endpoints and return the first that loads as an image */
+function testImage(url, timeout = 12000) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const t = setTimeout(() => {
+      img.src = ""; // stop
+      reject(new Error("timeout"));
+    }, timeout);
+    img.onload = () => { clearTimeout(t); resolve(url); };
+    img.onerror = () => { clearTimeout(t); reject(new Error("error")); };
+    img.referrerPolicy = "no-referrer"; // avoid cookies/referrer issues
+    img.src = url + (url.includes("?") ? "&" : "?") + "ts=" + Date.now();
+  });
+}
+
+/* Pick a working full-size URL for a Drive image id */
+async function pickFullUrl(id) {
+  const candidates = [
+    `https://lh3.googleusercontent.com/d/${id}=w2400`,          // #1 preferred
+    `https://drive.googleusercontent.com/uc?id=${id}`,         // #2 direct
+    `https://drive.google.com/thumbnail?id=${id}&sz=w2000`     // #3 always image
+  ];
+  for (const u of candidates) {
+    try { return await testImage(u); } catch(e) { /* try next */ }
+  }
+  throw new Error("no image endpoint worked");
+}
+
+/* Render the grid + lightbox anchors */
+async function render(items = []) {
   if (!Array.isArray(items)) items = [];
   if (items.length === 0 && gallery.childElementCount === 0) {
     statusEl.className = "msg info";
     statusEl.textContent = "No images found yet.";
     return;
   }
+  if (gallery.childElementCount === 0) statusEl.remove();
 
-  if (gallery.childElementCount === 0) statusEl.remove(); // remove “Loading…”
-
-  items.forEach(p => {
-   // NEW: use direct image endpoints
-const full  = `https://drive.googleusercontent.com/uc?id=${p.id}`;       // full-size image
-const thumb = `https://drive.google.com/thumbnail?id=${p.id}&sz=w900`;   // fast thumbnail
-
-
+  for (const p of items) {
+    const thumb = `https://drive.google.com/thumbnail?id=${p.id}&sz=w900`;
+    // Create anchor immediately so layout is fast…
     const a = document.createElement("a");
     a.className = "tile";
-    a.href = full;
-    a.setAttribute("data-lightbox", "purple-pack"); // group → next/prev
+    a.setAttribute("data-lightbox", "purple-pack");
     a.setAttribute("data-title", (p.name || "").replace(/\.[^.]+$/,""));
 
     const img = document.createElement("img");
     img.src = thumb;
     img.alt = p.name || "Photo";
     img.loading = "lazy";
-
     a.appendChild(img);
     gallery.appendChild(a);
-  });
+
+    // …then resolve a real working full image URL and attach it
+    try {
+      const full = await pickFullUrl(p.id);
+      a.href = full;
+    } catch {
+      a.removeAttribute("data-lightbox");
+      a.href = thumb; // at least open the large thumbnail
+      a.setAttribute("title", "Couldn’t open full image; showing large preview.");
+    }
+  }
 
   if (window.lightbox) {
     lightbox.option({
@@ -139,8 +163,6 @@ async function fetchFresh() {
     throw new Error("Bad API_URL");
   }
   const url = API_URL + (API_URL.includes("?") ? "&" : "?") + "t=" + Date.now();
-  console.log("Fetching:", url);
-
   const r = await fetch(url, { cache: "no-store" });
   if (!r.ok) {
     const txt = await r.text().catch(()=>"(no body)");
@@ -151,22 +173,21 @@ async function fetchFresh() {
 }
 
 /* boot */
-(function start(){
+(async function start(){
   const cached = cache.get();
-  if (cached) {
-    render(cached);
-    statusEl.textContent = "Refreshing…";
+  if (cached) { render(cached); statusEl.textContent = "Refreshing…"; }
+  try {
+    const items = await fetchFresh();
+    gallery.innerHTML = "";
+    await render(items);
+    cache.set(items);
+  } catch (err) {
+    console.error(err);
+    if (gallery.childElementCount === 0) {
+      statusEl.className = "msg err";
+      statusEl.textContent = "Failed to load images: " + err.message;
+    }
   }
-
-  fetchFresh()
-    .then(items => { gallery.innerHTML = ""; render(items); cache.set(items); })
-    .catch(err => {
-      console.error(err);
-      if (gallery.childElementCount === 0) {
-        statusEl.className = "msg err";
-        statusEl.textContent = "Failed to load images: " + err.message;
-      }
-    });
 })();
 </script>
 </body>

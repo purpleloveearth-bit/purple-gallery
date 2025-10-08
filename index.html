@@ -3,17 +3,17 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Auto Google Drive Gallery</title>
+<title>🐾 Auto Google Drive Gallery</title>
 
 <!-- Lightbox2 for next/prev/zoom -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lightbox2/2.11.5/css/lightbox.min.css">
 
 <style>
   :root { --bg:#0b0b0b; --fg:#eee; --accent:#8b5cf6; }
-  * { box-sizing:border-box }
+  * { box-sizing:border-box; }
   body { margin:0; background:var(--bg); color:var(--fg); font-family:system-ui, Arial, sans-serif; }
   header, footer { max-width:1200px; margin:0 auto; padding:16px; }
-  h1 { margin:0; font-size:1.25rem; color:var(--accent); }
+  h1 { margin:0; font-size:1.3rem; color:var(--accent); letter-spacing:0.5px; }
   .grid {
     max-width:1200px; margin:0 auto; padding:12px 16px 40px;
     display:grid; gap:12px; grid-template-columns:repeat(auto-fill,minmax(220px,1fr));
@@ -40,53 +40,103 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/lightbox2/2.11.5/js/lightbox.min.js"></script>
 
 <script>
-/* JSONP callback — Apps Script must return: initGallery([{id:"...", name:"..."}]) */
-function initGallery(items){
-  const wrap = document.getElementById('gallery');
-  const status = document.getElementById('status');
+/* =================== CONFIG =================== */
+const API_URL = "https://script.googleusercontent.com/macros/echo?user_content_key=AehSKLiFtaKrnlHBJmN7N6wvi_ueZYSjC1oxJE7mQo9UJaYQggSu7TSE2TWk28jtNF9zkFgHnrExrIupi_isbegjRB4Hr994SHWh6GwId55TN34vn40QMa03ADckj8jcgLBSjSaUm0cbQvoclmeCCt5X5GbiD4B8rb9S8KGLC1cYYlzNLlTkBUtg9I8xl1zri72aOfUjrpZIPc-q8xXQ7_pH6OGonm9cNWOrB53F9pUtQJEk8ec61ia0IUsJcLSpKry5jD1NViOptV5LBaqkKanL7pUlwB4I4dk1IHMW92uQ&lib=M_tSu8beZ3qYdOBC3NodhF7yTjQUW6d6j";
+const CACHE_KEY = "driveGallery:v1";
+const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+/* ============================================== */
 
-  if (!Array.isArray(items) || items.length === 0){
-    status.textContent = "No images found. Add photos to the Drive folder (and make them viewable to anyone with the link).";
+const wrap   = document.getElementById("gallery");
+const status = document.getElementById("status");
+const seen   = new Set();
+
+/* === RENDER GALLERY === */
+function render(items){
+  if (!Array.isArray(items)) items = [];
+  if (items.length === 0 && wrap.childElementCount === 0){
+    if (status) status.textContent = "No images found (yet).";
     return;
   }
-  status.remove();
+  if (status && wrap.childElementCount === 0) status.remove();
 
   items.forEach(p => {
-    // full image (lightbox) + fast thumbnail (grid)
+    if (!p || !p.id || seen.has(p.id)) return;
+    seen.add(p.id);
+
     const full  = `https://drive.google.com/uc?export=view&id=${p.id}`;
-    const thumb = `https://drive.google.com/thumbnail?id=${p.id}&sz=w800`; // use w600 for lighter pages
+    const thumb = `https://drive.google.com/thumbnail?id=${p.id}&sz=w800`;
 
-    const a = document.createElement('a');
-    a.className = 'tile';
+    const a = document.createElement("a");
+    a.className = "tile";
     a.href = full;
-    a.setAttribute('data-lightbox', 'purple');
-    a.setAttribute('data-title', (p.name || '').replace(/\.[^.]+$/,''));
+    a.setAttribute("data-lightbox","purple");
+    a.setAttribute("data-title",(p.name || "").replace(/\.[^.]+$/,""));
 
-    const img = document.createElement('img');
+    const img = document.createElement("img");
     img.src = thumb;
-    img.alt = p.name || 'Photo';
-    img.loading = 'lazy';
+    img.alt = p.name || "Photo";
+    img.loading = "lazy";
 
     a.appendChild(img);
-    wrap.appendChild(a);
+    wrap.prepend(a);
   });
 
-  lightbox.option({ wrapAround:true, fadeDuration:120, imageFadeDuration:120, resizeDuration:120, positionFromTop:40 });
+  if (window.lightbox){
+    lightbox.option({ wrapAround:true, fadeDuration:120, imageFadeDuration:120, resizeDuration:120, positionFromTop:40 });
+  }
 }
 
-/* Fallback if JSONP never arrives (wrong URL or permissions) */
-setTimeout(() => {
-  const wrap = document.getElementById('gallery');
-  if (wrap.childElementCount === 0) {
-    const status = document.getElementById('status');
-    status.className = 'error';
-    status.innerHTML = "Couldn’t load images. Check that:<br>• You used the correct Apps Script Web App URL (ending in <code>/exec</code>) with <code>?callback=initGallery</code>.<br>• Web App access is set to <b>Anyone</b>.<br>• The Drive folder and files are <b>Anyone with the link – Viewer</b>.";
-  }
-}, 6000);
-</script>
+/* === CACHE HELPERS === */
+function loadCache(){
+  try {
+    const s = localStorage.getItem(CACHE_KEY);
+    if (!s) return null;
+    const { time, items } = JSON.parse(s);
+    if (!Array.isArray(items)) return null;
+    if (Date.now() - time > CACHE_TTL) return null;
+    return items;
+  } catch { return null; }
+}
+function saveCache(items){
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify({ time: Date.now(), items })); } catch {}
+}
 
-<!-- ⬇️ Replace with your Apps Script Web App URL -->
-<script src="https://script.google.com/macros/s/AKfycbzMiFMfZKJ7WG03EtFbea0F6c7K0VL3tn9k0Ez7MdB3zZPb0b2ivDjx4A6MxQaWx953ZQ/exec?callback=initGallery"></script> 
+/* === FETCH NEW DATA === */
+async function fetchFresh(){
+  const url = API_URL + (API_URL.includes("?") ? "&" : "?") + "t=" + Date.now();
+  const r = await fetch(url, { cache:"no-store" });
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  const items = await r.json();
+
+  const stamp = localStorage.getItem(CACHE_KEY);
+  const last  = stamp ? JSON.parse(stamp).items : null;
+  const changed = !last || last.length !== (items || []).length;
+
+  if (changed){
+    wrap.innerHTML = "";
+    seen.clear();
+    render(items);
+    saveCache(items);
+  }
+  if (status) status.remove();
+}
+
+/* === MAIN START === */
+(function start(){
+  const cached = loadCache();
+  if (cached){
+    render(cached);
+    if (status) status.textContent = "Refreshing…";
+  }
+  fetchFresh().catch(err => {
+    if (wrap.childElementCount === 0 && status){
+      status.className = "error";
+      status.textContent = "Failed to load images: " + err.message;
+    }
+  });
+})();
+</script>
 </body>
 </html>
+
 

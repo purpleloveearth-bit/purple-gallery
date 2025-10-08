@@ -84,8 +84,10 @@ function render(items = []) {
   if (gallery.childElementCount === 0) statusEl.remove(); // remove “Loading…”
 
   items.forEach(p => {
-    const full  = `https://drive.google.com/uc?export=download&id=${p.id}`;
-    const thumb = `https://drive.google.com/thumbnail?id=${p.id}&sz=w900`;
+   // NEW: use direct image endpoints
+const full  = `https://drive.googleusercontent.com/uc?id=${p.id}`;       // full-size image
+const thumb = `https://drive.google.com/thumbnail?id=${p.id}&sz=w900`;   // fast thumbnail
+
 
     const a = document.createElement("a");
     a.className = "tile";

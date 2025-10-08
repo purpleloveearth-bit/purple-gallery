@@ -1,95 +1,38 @@
 <script>
-/* ===== CONFIG ===== */
-const API_URL   = "https://script.google.com/macros/s/AKfycbz6KTD-wyy7o0JQKMxBctAHLjD_l8vdZNklQheZaLj8ZtJQqVM4jsUnkNBYF239BNcTOw/exec";
-const CACHE_KEY = 'driveGallery:v1';
-const CACHE_TTL = 10 * 60 * 1000;
-/* ================== */
+const API_URL = "https://script.google.com/macros/s/AKfycbz6KTD-wyy7o0JQKMxBctAHLjD_l8vdZNklQheZaLj8ZtJQqVM4jsUnkNBYF239BNcTOw/exec";
 
-const wrap   = document.getElementById('gallery');
-const status = document.getElementById('status');
-const seen   = new Set();
-
-function render(items){
-  if (!Array.isArray(items)) items = [];
-  if (items.length === 0 && wrap.childElementCount === 0) {
-    if (status) status.textContent = "No images found (yet).";
+function initGallery(items){
+  const wrap = document.getElementById('gallery');
+  const status = document.getElementById('status');
+  if (!Array.isArray(items) || items.length === 0){
+    status.textContent = "No images found (or folder/files not shared).";
     return;
   }
-  if (status && wrap.childElementCount === 0) status.remove();
+  status.remove();
 
-  let added = 0;
-  items.forEach(p => {
-    if (!p || !p.id || seen.has(p.id)) return;
-    seen.add(p.id);
-
+  items.forEach(p=>{
     const full  = `https://drive.google.com/uc?export=view&id=${p.id}`;
     const thumb = `https://drive.google.com/thumbnail?id=${p.id}&sz=w800`;
-
     const a = document.createElement('a');
-    a.className = 'tile';
+    a.className='tile';
     a.href = full;
     a.setAttribute('data-lightbox','purple');
-    a.setAttribute('data-title', (p.name || '').replace(/\.[^.]+$/,''));
-
+    a.setAttribute('data-title',(p.name||'').replace(/\.[^.]+$/,''));
     const img = document.createElement('img');
-    img.src = thumb;
-    img.alt = p.name || 'Photo';
-    img.loading = 'lazy';
-
-    a.appendChild(img);
-    wrap.prepend(a);
-    added++;
+    img.src = thumb; img.alt = p.name||'Photo'; img.loading='lazy';
+    a.appendChild(img); wrap.appendChild(a);
   });
-
-  if (added > 0 && window.lightbox) {
-    lightbox.option({ wrapAround:true, fadeDuration:120, imageFadeDuration:120, resizeDuration:120, positionFromTop:40 });
-  }
 }
 
-function loadCache(){
-  try {
-    const s = localStorage.getItem(CACHE_KEY);
-    if (!s) return null;
-    const { time, items } = JSON.parse(s);
-    if (!Array.isArray(items)) return null;
-    if (Date.now() - time > CACHE_TTL) return null;
-    return items;
-  } catch { return null; }
-}
-function saveCache(items){
-  try { localStorage.setItem(CACHE_KEY, JSON.stringify({ time: Date.now(), items })); } catch {}
-}
-
-async function fetchFresh(){
-  const url = API_URL + (API_URL.includes('?') ? '&' : '?') + 't=' + Date.now(); // cache-bust
-  const r = await fetch(url, { cache: 'no-store' });
-  if (!r.ok) throw new Error('HTTP ' + r.status);
-  const items = await r.json();
-  // if nothing changed, do nothing; otherwise render + cache
-  const stamp = localStorage.getItem(CACHE_KEY);
-  const last  = stamp ? JSON.parse(stamp).items : null;
-  const changed = !last || last.length !== (items || []).length;
-  if (changed) {
-    // reset & re-render to keep it simple
-    wrap.innerHTML = ''; seen.clear();
-    render(items);
-    saveCache(items);
-  }
-  if (status) status.remove();
-}
-
-(function start(){
-  const cached = loadCache();
-  if (cached) {
-    render(cached);
-    if (status) status.textContent = 'Refreshing…';
-  }
-  // always try to refresh in background
-  fetchFresh().catch(err => {
-    if (wrap.childElementCount === 0 && status) {
-      status.className = 'error';
-      status.textContent = 'Failed to load images: ' + err.message;
-    }
+fetch(API_URL)
+  .then(r => {
+    if (!r.ok) throw new Error('HTTP '+r.status);
+    return r.json();
+  })
+  .then(initGallery)
+  .catch(err => {
+    const s = document.getElementById('status');
+    s.className = 'error';
+    s.textContent = 'Failed to load images: ' + err.message;
   });
-})();
 </script>

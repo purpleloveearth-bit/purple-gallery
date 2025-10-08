@@ -1,38 +1,120 @@
-<script>
-const API_URL = "https://script.google.com/macros/s/AKfycbz6KTD-wyy7o0JQKMxBctAHLjD_l8vdZNklQheZaLj8ZtJQqVM4jsUnkNBYF239BNcTOw/exec";
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>🐾 Auto Google Drive Gallery</title>
 
-function initGallery(items){
-  const wrap = document.getElementById('gallery');
-  const status = document.getElementById('status');
-  if (!Array.isArray(items) || items.length === 0){
-    status.textContent = "No images found (or folder/files not shared).";
+<!-- Lightbox2 CSS -->
+<link href="https://cdnjs.cloudflare.com/ajax/libs/lightbox2/2.11.5/css/lightbox.min.css" rel="stylesheet">
+
+<style>
+  :root { --bg:#0b0b0b; --fg:#eee; --accent:#8b5cf6; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font-family:system-ui, Arial, sans-serif; }
+  header, footer { max-width:1200px; margin:0 auto; padding:16px; }
+  h1 { margin:0; font-size:1.3rem; color:var(--accent); letter-spacing:.3px; }
+  .grid {
+    max-width:1200px; margin:0 auto; padding:12px 16px 40px;
+    display:grid; gap:12px; grid-template-columns:repeat(auto-fill,minmax(220px,1fr));
+  }
+  .tile { display:block; border-radius:12px; overflow:hidden; border:1px solid #222; transition:transform .15s; }
+  .tile:hover { transform: translateY(-2px); }
+  .tile img { width:100%; height:220px; object-fit:cover; display:block; background:#1a1a1a; }
+  .empty, .error { max-width:1200px; margin:24px auto; padding:12px 16px; opacity:.9; }
+  .empty { color:#bbb; }
+  .error { color:#ffb4b4; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🐾 Auto Google Drive Gallery</h1>
+  <div class="empty" id="status">Loading photos…</div>
+</header>
+
+<main id="gallery" class="grid"></main>
+
+<footer>Powered by paw prints & love 💜</footer>
+
+<!-- jQuery (required by Lightbox2) -->
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"
+        integrity="sha256-eKhayi8LEQwp4NKxN+CfCh+3qOVUtJn3QNZ0TciWLP4="
+        crossorigin="anonymous"></script>
+
+<!-- Lightbox2 JS -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lightbox2/2.11.5/js/lightbox.min.js"></script>
+
+<script>
+/* Your /exec Web App URL (JSONP-friendly) */
+const EXEC_URL = "https://script.google.com/macros/s/AKfycbz6KTD-wyy7o0JQKMxBctAHLjD_l8vdZNklQheZaLj8ZtJQqVM4jsUnkNBYF239BNcTOw/exec";
+
+const wrap   = document.getElementById("gallery");
+const status = document.getElementById("status");
+const seen   = new Set();
+
+/* Render the gallery (full image in lightbox, fast thumbnail in grid) */
+function render(items){
+  if (!Array.isArray(items)) items = [];
+
+  if (items.length === 0 && wrap.childElementCount === 0){
+    if (status) status.textContent = "No images found (yet).";
     return;
   }
-  status.remove();
+  if (status && wrap.childElementCount === 0) status.remove();
 
-  items.forEach(p=>{
-    const full  = `https://drive.google.com/uc?export=view&id=${p.id}`;
-    const thumb = `https://drive.google.com/thumbnail?id=${p.id}&sz=w800`;
-    const a = document.createElement('a');
-    a.className='tile';
+  items.forEach(p => {
+    if (!p || !p.id || seen.has(p.id)) return;
+    seen.add(p.id);
+
+    const full  = `https://drive.google.com/uc?export=view&id=${p.id}`;        // full photo in lightbox
+    const thumb = `https://drive.google.com/thumbnail?id=${p.id}&sz=w800`;     // fast grid thumbnail
+
+    const a = document.createElement("a");
+    a.className = "tile";
     a.href = full;
-    a.setAttribute('data-lightbox','purple');
-    a.setAttribute('data-title',(p.name||'').replace(/\.[^.]+$/,''));
-    const img = document.createElement('img');
-    img.src = thumb; img.alt = p.name||'Photo'; img.loading='lazy';
-    a.appendChild(img); wrap.appendChild(a);
+    a.setAttribute("data-lightbox","gallery");  // group all → next/prev arrows
+    a.setAttribute("data-title",(p.name || "").replace(/\.[^.]+$/,""));
+
+    const img = document.createElement("img");
+    img.src = thumb;
+    img.alt = p.name || "Photo";
+    img.loading = "lazy";
+
+    a.appendChild(img);
+    wrap.appendChild(a);
   });
+
+  if (window.lightbox){
+    lightbox.option({
+      wrapAround: true,
+      alwaysShowNavOnTouchDevices: true,
+      fadeDuration: 120,
+      imageFadeDuration: 120,
+      resizeDuration: 120,
+      positionFromTop: 40,
+      disableScrolling: true,
+      fitImagesInViewport: true
+    });
+  }
 }
 
-fetch(API_URL)
-  .then(r => {
-    if (!r.ok) throw new Error('HTTP '+r.status);
-    return r.json();
-  })
-  .then(initGallery)
-  .catch(err => {
-    const s = document.getElementById('status');
-    s.className = 'error';
-    s.textContent = 'Failed to load images: ' + err.message;
-  });
+/* JSONP callback — your Apps Script must call: initGallery([{id:"...", name:"..."}]) */
+function initGallery(items){
+  render(items);
+}
+
+/* Fallback if the JSONP never arrives (wrong URL / permissions) */
+setTimeout(() => {
+  if (wrap.childElementCount === 0 && status){
+    status.className = "error";
+    status.innerHTML = `Couldn’t load images.<br>
+      • Make sure the Web App is <b>Deployed</b> and set to <b>Anyone</b> (or Anyone with the link).<br>
+      • Confirm the Drive folder and images are shared as <b>Viewer</b> for “Anyone with the link”.`;
+  }
+}, 8000);
 </script>
+
+<!-- Load the JSONP from your /exec endpoint -->
+<script src="https://script.google.com/macros/s/AKfycbz6KTD-wyy7o0JQKMxBctAHLjD_l8vdZNklQheZaLj8ZtJQqVM4jsUnkNBYF239BNcTOw/exec?callback=initGallery"></script>
+</body>
+</html>

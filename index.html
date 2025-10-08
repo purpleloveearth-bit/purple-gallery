@@ -84,7 +84,7 @@ function render(items = []) {
   if (gallery.childElementCount === 0) statusEl.remove(); // remove “Loading…”
 
   items.forEach(p => {
-    const full  = `https://drive.google.com/uc?export=view&id=${p.id}`;
+    const full  = `https://drive.google.com/uc?export=download&id=${p.id}`;
     const thumb = `https://drive.google.com/thumbnail?id=${p.id}&sz=w900`;
 
     const a = document.createElement("a");

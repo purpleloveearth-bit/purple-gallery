@@ -2,10 +2,9 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>🐾 Auto Google Drive Gallery</title>
+<meta name="viewport" content="width=device-width,initial-scale=2" />
+<title>🐾 Auto Google Purple Drive Gallery</title>
 
-<!-- Lightbox2 CSS (for next/prev/zoom) -->
 <link href="https://cdnjs.cloudflare.com/ajax/libs/lightbox2/2.11.5/css/lightbox.min.css" rel="stylesheet">
 
 <style>
@@ -36,43 +35,62 @@
 
 <footer>Powered by paw prints &amp; love 💜</footer>
 
-<!-- jQuery (required by Lightbox2) -->
-<script src="https://code.jquery.com/jquery-3.7.1.min.js"
-        integrity="sha256-eKhayi8LEQwp4NKxN+CfCh+3qOVUtJn3QNZ0TciWLP4=" crossorigin="anonymous"></script>
-<!-- Lightbox2 JS -->
+<script src="https://code.jquery.com/jquery-3.7.1.min.js" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/lightbox2/2.11.5/js/lightbox.min.js"></script>
 
 <script>
-/* ================== CONFIG ================== */
+/* Your googleusercontent URL (works for fetch/CORS): */
 const API_URL =
   "https://script.googleusercontent.com/macros/echo?user_content_key=AehSKLiVXG38utgTsOYe0175zggPzf9Q2ipKRn4QiVXuZMweoSDuSGDLHa0N-ZasQsPcHQROBV3tpfTI3LHIgs3997j_lAdNd3f3IFVS6lyFUr2qb2UDe9psSN1OuF0VKzFv-uXM-I9ZlK2CLi4qzgq7ZPHHn-7F4yS2ukdmOizEjQrL2o2zqbZLXJdt9-6MC2XIewPIxVqagRmQCNGyIlCZHCEkIIbZiL7w8qm3r6CsRk7lO0ryjjzDaqyhKztuIePMJFCUsxc1Ss0y1ICPznRrB6SdBiWX4A&lib=M_tSu8beZ3qYdOBC3NodhF7yTjQUW6d6j";
 
-/* optional tiny cache (avoids flicker on reloads) */
-const CACHE_KEY = "driveGallery:v1";
+/* Small cache (optional) */
+const CACHE_KEY = "driveGallery:v2";
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 const gallery = document.getElementById("gallery");
 const statusEl = document.getElementById("status");
 
-/* Render tiles + enable Lightbox next/prev */
+/* Normalize whatever the Apps Script returns into [{id,name}] */
+function normalize(data) {
+  console.log("Raw response:", data);
+  let arr = [];
+
+  // common shapes
+  if (Array.isArray(data)) arr = data;
+  else if (Array.isArray(data.items)) arr = data.items;
+  else if (Array.isArray(data.files)) arr = data.files;
+  else if (data && Array.isArray(data.result)) arr = data.result;
+  else if (data && data.data && Array.isArray(data.data)) arr = data.data;
+
+  // map to {id, name}
+  arr = arr.map(x => ({
+    id:   x.id || x.fileId || x.gid || x.ID || x.file_id,
+    name: x.name || x.title || x.filename || ""
+  })).filter(x => x.id);
+
+  console.log("Normalized items:", arr);
+  return arr;
+}
+
+/* Render tiles + Lightbox next/prev */
 function render(items = []) {
   if (!Array.isArray(items)) items = [];
   if (items.length === 0 && gallery.childElementCount === 0) {
+    statusEl.className = "msg info";
     statusEl.textContent = "No images found yet.";
     return;
   }
-  if (gallery.childElementCount === 0) statusEl.remove();
+
+  if (gallery.childElementCount === 0) statusEl.remove(); // remove “Loading…”
 
   items.forEach(p => {
-    if (!p || !p.id) return;
-
-    const full  = `https://drive.google.com/uc?export=view&id=${p.id}`;     // full-size
-    const thumb = `https://drive.google.com/thumbnail?id=${p.id}&sz=w900`; // thumb/preview
+    const full  = `https://drive.google.com/uc?export=view&id=${p.id}`;
+    const thumb = `https://drive.google.com/thumbnail?id=${p.id}&sz=w900`;
 
     const a = document.createElement("a");
     a.className = "tile";
     a.href = full;
-    a.setAttribute("data-lightbox", "purple-pack");        // group → Next/Prev arrows
+    a.setAttribute("data-lightbox", "purple-pack"); // group → next/prev
     a.setAttribute("data-title", (p.name || "").replace(/\.[^.]+$/,""));
 
     const img = document.createElement("img");
@@ -98,7 +116,7 @@ function render(items = []) {
   }
 }
 
-/* simple localStorage cache */
+/* tiny localStorage cache */
 const cache = {
   get() {
     try {
@@ -110,9 +128,7 @@ const cache = {
     } catch { return null; }
   },
   set(items) {
-    try {
-      localStorage.setItem(CACHE_KEY, JSON.stringify({ t: Date.now(), items }));
-    } catch {}
+    try { localStorage.setItem(CACHE_KEY, JSON.stringify({ t: Date.now(), items })); } catch {}
   }
 };
 
@@ -120,13 +136,16 @@ async function fetchFresh() {
   if (!/^https:\/\/script\.googleusercontent\.com\/macros\/echo/i.test(API_URL)) {
     throw new Error("Bad API_URL");
   }
-  const url = API_URL + (API_URL.includes("?") ? "&" : "?") + "t=" + Date.now(); // cache-bust
+  const url = API_URL + (API_URL.includes("?") ? "&" : "?") + "t=" + Date.now();
+  console.log("Fetching:", url);
+
   const r = await fetch(url, { cache: "no-store" });
   if (!r.ok) {
     const txt = await r.text().catch(()=>"(no body)");
-    throw new Error("HTTP " + r.status + " — " + txt.slice(0,200));
+    throw new Error(`HTTP ${r.status} — ${txt.slice(0,200)}`);
   }
-  return r.json();
+  const json = await r.json();
+  return normalize(json);
 }
 
 /* boot */
@@ -140,6 +159,7 @@ async function fetchFresh() {
   fetchFresh()
     .then(items => { gallery.innerHTML = ""; render(items); cache.set(items); })
     .catch(err => {
+      console.error(err);
       if (gallery.childElementCount === 0) {
         statusEl.className = "msg err";
         statusEl.textContent = "Failed to load images: " + err.message;

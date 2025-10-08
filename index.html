@@ -1,66 +1,23 @@
-<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>🐾 Auto Google Drive Gallery</title>
-
-<!-- Lightbox2 CSS -->
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lightbox2/2.11.5/css/lightbox.min.css">
-
-<style>
-  :root { --bg:#0b0b0b; --fg:#eee; --accent:#8b5cf6; }
-  * { box-sizing:border-box; }
-  body { margin:0; background:var(--bg); color:var(--fg); font-family:system-ui, Arial, sans-serif; }
-  header, footer { max-width:1200px; margin:0 auto; padding:16px; }
-  h1 { margin:0; font-size:1.3rem; color:var(--accent); letter-spacing:.3px; }
-  .grid {
-    max-width:1200px; margin:0 auto; padding:12px 16px 40px;
-    display:grid; gap:12px; grid-template-columns:repeat(auto-fill,minmax(220px,1fr));
-  }
-  .tile { display:block; border-radius:12px; overflow:hidden; border:1px solid #222; transition:transform .15s; }
-  .tile:hover { transform: translateY(-2px); }
-  .tile img { width:100%; height:220px; object-fit:cover; display:block; background:#1a1a1a; }
-  .empty, .error { max-width:1200px; margin:24px auto; padding:12px 16px; opacity:.9; }
-  .empty { color:#bbb; }
-  .error { color:#ffb4b4; }
-</style>
-</head>
-<body>
-<header>
-  <h1>🐾 Auto Google Drive Gallery</h1>
-  <div class="empty" id="status">Loading photos…</div>
-</header>
-
-<main id="gallery" class="grid"></main>
-
-<footer>Powered by paw prints & love 💜</footer>
-
-<!-- jQuery (required by Lightbox2) -->
-<script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-7v6xJw1q7v4jvNR3B5M0b12nY9n8N4e+g2e3X2Z7h6w=" crossorigin="anonymous"></script>
-
-<!-- Lightbox2 JS -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/lightbox2/2.11.5/js/lightbox.min.js"></script>
-
 <script>
-/* =================== CONFIG =================== */
-const API_URL = "YOUR_GOOGLEUSERCONTENT_JSON_URL";  // <-- put your googleusercontent echo URL here
-const CACHE_KEY = "driveGallery:v1";
-const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
-/* ============================================== */
+/* ===== CONFIG ===== */
+const API_URL   = "https://script.google.com/macros/s/AKfycbz6KTD-wyy7o0JQKMxBctAHLjD_l8vdZNklQheZaLj8ZtJQqVM4jsUnkNBYF239BNcTOw/exec";
+const CACHE_KEY = 'driveGallery:v1';
+const CACHE_TTL = 10 * 60 * 1000;
+/* ================== */
 
-const wrap   = document.getElementById("gallery");
-const status = document.getElementById("status");
+const wrap   = document.getElementById('gallery');
+const status = document.getElementById('status');
 const seen   = new Set();
 
 function render(items){
   if (!Array.isArray(items)) items = [];
-  if (items.length === 0 && wrap.childElementCount === 0){
+  if (items.length === 0 && wrap.childElementCount === 0) {
     if (status) status.textContent = "No images found (yet).";
     return;
   }
   if (status && wrap.childElementCount === 0) status.remove();
 
+  let added = 0;
   items.forEach(p => {
     if (!p || !p.id || seen.has(p.id)) return;
     seen.add(p.id);
@@ -68,37 +25,27 @@ function render(items){
     const full  = `https://drive.google.com/uc?export=view&id=${p.id}`;
     const thumb = `https://drive.google.com/thumbnail?id=${p.id}&sz=w800`;
 
-    const a = document.createElement("a");
-    a.className = "tile";
+    const a = document.createElement('a');
+    a.className = 'tile';
     a.href = full;
-    a.setAttribute("data-lightbox","gallery");          // group all → next/prev arrows
-    a.setAttribute("data-title",(p.name||"").replace(/\.[^.]+$/,""));
+    a.setAttribute('data-lightbox','purple');
+    a.setAttribute('data-title', (p.name || '').replace(/\.[^.]+$/,''));
 
-    const img = document.createElement("img");
+    const img = document.createElement('img');
     img.src = thumb;
-    img.alt = p.name || "Photo";
-    img.loading = "lazy";
+    img.alt = p.name || 'Photo';
+    img.loading = 'lazy';
 
     a.appendChild(img);
-    wrap.appendChild(a);
+    wrap.prepend(a);
+    added++;
   });
 
-  // Lightbox options (arrows on mobile, wrap-around, etc.)
-  if (window.lightbox){
-    lightbox.option({
-      wrapAround: true,
-      alwaysShowNavOnTouchDevices: true,
-      fadeDuration: 120,
-      imageFadeDuration: 120,
-      resizeDuration: 120,
-      positionFromTop: 40,
-      disableScrolling: true,
-      fitImagesInViewport: true
-    });
+  if (added > 0 && window.lightbox) {
+    lightbox.option({ wrapAround:true, fadeDuration:120, imageFadeDuration:120, resizeDuration:120, positionFromTop:40 });
   }
 }
 
-/* Simple cache */
 function loadCache(){
   try {
     const s = localStorage.getItem(CACHE_KEY);
@@ -114,18 +61,17 @@ function saveCache(items){
 }
 
 async function fetchFresh(){
-  const url = API_URL + (API_URL.includes("?") ? "&" : "?") + "t=" + Date.now();
-  const r = await fetch(url, { cache:"no-store" });
-  if (!r.ok) throw new Error("HTTP " + r.status);
+  const url = API_URL + (API_URL.includes('?') ? '&' : '?') + 't=' + Date.now(); // cache-bust
+  const r = await fetch(url, { cache: 'no-store' });
+  if (!r.ok) throw new Error('HTTP ' + r.status);
   const items = await r.json();
-
+  // if nothing changed, do nothing; otherwise render + cache
   const stamp = localStorage.getItem(CACHE_KEY);
   const last  = stamp ? JSON.parse(stamp).items : null;
   const changed = !last || last.length !== (items || []).length;
-
-  if (changed){
-    wrap.innerHTML = "";
-    seen.clear();
+  if (changed) {
+    // reset & re-render to keep it simple
+    wrap.innerHTML = ''; seen.clear();
     render(items);
     saveCache(items);
   }
@@ -134,21 +80,16 @@ async function fetchFresh(){
 
 (function start(){
   const cached = loadCache();
-  if (cached){
+  if (cached) {
     render(cached);
-    if (status) status.textContent = "Refreshing…";
+    if (status) status.textContent = 'Refreshing…';
   }
+  // always try to refresh in background
   fetchFresh().catch(err => {
-    if (wrap.childElementCount === 0 && status){
-      status.className = "error";
-      status.textContent = "Failed to load images: " + err.message;
+    if (wrap.childElementCount === 0 && status) {
+      status.className = 'error';
+      status.textContent = 'Failed to load images: ' + err.message;
     }
   });
 })();
 </script>
-</body>
-</html>
-
-
-
-

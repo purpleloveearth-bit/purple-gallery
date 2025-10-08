@@ -45,14 +45,22 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/lightbox2/2.11.5/js/lightbox.min.js"></script>
 
 <script>
-/* Your /exec Web App URL (JSONP-friendly) */
-const EXEC_URL = "https://script.google.com/macros/s/AKfycbz6KTD-wyy7o0JQKMxBctAHLjD_l8vdZNklQheZaLj8ZtJQqVM4jsUnkNBYF239BNcTOw/exec";
+/* ============================================================
+   1) SET THIS to your working googleusercontent JSON endpoint.
+      It must look like:
+      https://script.googleusercontent.com/macros/echo?user_content_key=...&lib=YOUR_DEPLOYMENT_ID
+   ============================================================ */
+const API_URL = "https://script.google.com/macros/s/AKfycbz6KTD-wyy7o0JQKMxBctAHLjD_l8vdZNklQheZaLj8ZtJQqVM4jsUnkNBYF239BNcTOw/exec";
+
+/* ====== Cache config (optional) ====== */
+const CACHE_KEY = "driveGallery:v1";
+const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 
 const wrap   = document.getElementById("gallery");
 const status = document.getElementById("status");
 const seen   = new Set();
 
-/* Render the gallery (full image in lightbox, fast thumbnail in grid) */
+/* Render gallery tiles and enable lightbox next/prev */
 function render(items){
   if (!Array.isArray(items)) items = [];
 
@@ -66,13 +74,15 @@ function render(items){
     if (!p || !p.id || seen.has(p.id)) return;
     seen.add(p.id);
 
-    const full  = `https://drive.google.com/uc?export=view&id=${p.id}`;        // full photo in lightbox
-    const thumb = `https://drive.google.com/thumbnail?id=${p.id}&sz=w800`;     // fast grid thumbnail
+    // Full image for the lightbox
+    const full  = `https://drive.google.com/uc?export=view&id=${p.id}`;
+    // Fast thumbnail for the grid
+    const thumb = `https://drive.google.com/thumbnail?id=${p.id}&sz=w800`;
 
     const a = document.createElement("a");
     a.className = "tile";
     a.href = full;
-    a.setAttribute("data-lightbox","gallery");  // group all → next/prev arrows
+    a.setAttribute("data-lightbox","gallery"); // group all → next/prev arrows
     a.setAttribute("data-title",(p.name || "").replace(/\.[^.]+$/,""));
 
     const img = document.createElement("img");
@@ -98,23 +108,68 @@ function render(items){
   }
 }
 
-/* JSONP callback — your Apps Script must call: initGallery([{id:"...", name:"..."}]) */
-function initGallery(items){
-  render(items);
+/* ---- simple localStorage cache ---- */
+function loadCache(){
+  try {
+    const s = localStorage.getItem(CACHE_KEY);
+    if (!s) return null;
+    const { time, items } = JSON.parse(s);
+    if (!Array.isArray(items)) return null;
+    if (Date.now() - time > CACHE_TTL) return null;
+    return items;
+  } catch { return null; }
+}
+function saveCache(items){
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify({ time: Date.now(), items })); } catch {}
 }
 
-/* Fallback if the JSONP never arrives (wrong URL / permissions) */
-setTimeout(() => {
-  if (wrap.childElementCount === 0 && status){
-    status.className = "error";
-    status.innerHTML = `Couldn’t load images.<br>
-      • Make sure the Web App is <b>Deployed</b> and set to <b>Anyone</b> (or Anyone with the link).<br>
-      • Confirm the Drive folder and images are shared as <b>Viewer</b> for “Anyone with the link”.`;
+/* ---- fetch fresh data from API_URL ---- */
+async function fetchFresh(){
+  if (!API_URL || !/^https:\/\/script\.googleusercontent\.com\/macros\/echo/i.test(API_URL)) {
+    console.error("API_URL is missing or not a googleusercontent echo URL:", API_URL);
+    throw new Error("Bad API_URL");
   }
-}, 8000);
-</script>
 
-<!-- Load the JSONP from your /exec endpoint -->
-<script src="https://script.google.com/macros/s/AKfycbz6KTD-wyy7o0JQKMxBctAHLjD_l8vdZNklQheZaLj8ZtJQqVM4jsUnkNBYF239BNcTOw/exec?callback=initGallery"></script>
+  const url = API_URL + (API_URL.includes("?") ? "&" : "?") + "t=" + Date.now(); // cache-bust
+  console.log("Fetching:", url);
+
+  const r = await fetch(url, { cache:"no-store" });
+  if (!r.ok) {
+    const txt = await r.text().catch(()=>"(no body)");
+    console.error("Fetch failed", r.status, txt);
+    throw new Error("HTTP " + r.status);
+  }
+
+  const items = await r.json();
+
+  // If changed, rebuild (simple compare by count; customize if needed)
+  const stamp = localStorage.getItem(CACHE_KEY);
+  const last  = stamp ? JSON.parse(stamp).items : null;
+  const changed = !last || last.length !== (items || []).length;
+
+  if (changed){
+    wrap.innerHTML = "";
+    seen.clear();
+    render(items);
+    saveCache(items);
+  }
+  if (status) status.remove();
+}
+
+/* ---- bootstrap ---- */
+(function start(){
+  const cached = loadCache();
+  if (cached){
+    render(cached);
+    if (status) status.textContent = "Refreshing…";
+  }
+  fetchFresh().catch(err => {
+    if (wrap.childElementCount === 0 && status){
+      status.className = "error";
+      status.textContent = "Failed to load images: " + err.message;
+    }
+  });
+})();
+</script>
 </body>
 </html>

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>🐾 Auto Google Drive Gallery</title>
 
-<!-- Lightbox2 for next/prev/zoom -->
+<!-- Lightbox2 (next/prev) -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lightbox2/2.11.5/css/lightbox.min.css">
 
 <style>
@@ -13,7 +13,7 @@
   * { box-sizing:border-box; }
   body { margin:0; background:var(--bg); color:var(--fg); font-family:system-ui, Arial, sans-serif; }
   header, footer { max-width:1200px; margin:0 auto; padding:16px; }
-  h1 { margin:0; font-size:1.3rem; color:var(--accent); letter-spacing:0.5px; }
+  h1 { margin:0; font-size:1.3rem; color:var(--accent); letter-spacing:.3px; }
   .grid {
     max-width:1200px; margin:0 auto; padding:12px 16px 40px;
     display:grid; gap:12px; grid-template-columns:repeat(auto-fill,minmax(220px,1fr));
@@ -41,6 +41,7 @@
 
 <script>
 /* =================== CONFIG =================== */
+/* Use your working googleusercontent JSON URL here */
 const API_URL = "https://script.googleusercontent.com/macros/echo?user_content_key=AehSKLiFtaKrnlHBJmN7N6wvi_ueZYSjC1oxJE7mQo9UJaYQggSu7TSE2TWk28jtNF9zkFgHnrExrIupi_isbegjRB4Hr994SHWh6GwId55TN34vn40QMa03ADckj8jcgLBSjSaUm0cbQvoclmeCCt5X5GbiD4B8rb9S8KGLC1cYYlzNLlTkBUtg9I8xl1zri72aOfUjrpZIPc-q8xXQ7_pH6OGonm9cNWOrB53F9pUtQJEk8ec61ia0IUsJcLSpKry5jD1NViOptV5LBaqkKanL7pUlwB4I4dk1IHMW92uQ&lib=M_tSu8beZ3qYdOBC3NodhF7yTjQUW6d6j";
 const CACHE_KEY = "driveGallery:v1";
 const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
@@ -50,7 +51,7 @@ const wrap   = document.getElementById("gallery");
 const status = document.getElementById("status");
 const seen   = new Set();
 
-/* === RENDER GALLERY === */
+/* === RENDER GALLERY (Next/Prev + Full photo) === */
 function render(items){
   if (!Array.isArray(items)) items = [];
   if (items.length === 0 && wrap.childElementCount === 0){
@@ -63,13 +64,15 @@ function render(items){
     if (!p || !p.id || seen.has(p.id)) return;
     seen.add(p.id);
 
+    // Full image in lightbox (original photo, scaled to viewport)
     const full  = `https://drive.google.com/uc?export=view&id=${p.id}`;
+    // Fast thumbnail for grid cards
     const thumb = `https://drive.google.com/thumbnail?id=${p.id}&sz=w800`;
 
     const a = document.createElement("a");
     a.className = "tile";
     a.href = full;
-    a.setAttribute("data-lightbox","purple");
+    a.setAttribute("data-lightbox","gallery"); // group ALL images → next/prev buttons appear
     a.setAttribute("data-title",(p.name || "").replace(/\.[^.]+$/,""));
 
     const img = document.createElement("img");
@@ -78,11 +81,20 @@ function render(items){
     img.loading = "lazy";
 
     a.appendChild(img);
-    wrap.prepend(a);
+    wrap.appendChild(a);
   });
 
   if (window.lightbox){
-    lightbox.option({ wrapAround:true, fadeDuration:120, imageFadeDuration:120, resizeDuration:120, positionFromTop:40 });
+    lightbox.option({
+      wrapAround: true,                  // continuous next/prev
+      alwaysShowNavOnTouchDevices: true, // show arrows on mobile
+      fadeDuration: 120,
+      imageFadeDuration: 120,
+      resizeDuration: 120,
+      positionFromTop: 40,
+      disableScrolling: true,
+      fitImagesInViewport: true
+    });
   }
 }
 
@@ -103,7 +115,7 @@ function saveCache(items){
 
 /* === FETCH NEW DATA === */
 async function fetchFresh(){
-  const url = API_URL + (API_URL.includes("?") ? "&" : "?") + "t=" + Date.now();
+  const url = API_URL + (API_URL.includes("?") ? "&" : "?") + "t=" + Date.now(); // cache-bust
   const r = await fetch(url, { cache:"no-store" });
   if (!r.ok) throw new Error("HTTP " + r.status);
   const items = await r.json();
@@ -125,7 +137,7 @@ async function fetchFresh(){
 (function start(){
   const cached = loadCache();
   if (cached){
-    render(cached);
+    render(cached);               // instant draw
     if (status) status.textContent = "Refreshing…";
   }
   fetchFresh().catch(err => {
@@ -138,5 +150,6 @@ async function fetchFresh(){
 </script>
 </body>
 </html>
+
 
 

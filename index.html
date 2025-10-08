@@ -2,10 +2,10 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=2">
-<title>🐾 Purple Family Gallery </title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>🐾 Auto Google Drive Gallery</title>
 
-<!-- Lightbox2 (next/prev) -->
+<!-- Lightbox2 CSS -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lightbox2/2.11.5/css/lightbox.min.css">
 
 <style>
@@ -36,13 +36,15 @@
 
 <footer>Powered by paw prints & love 💜</footer>
 
+<!-- jQuery (required by Lightbox2) -->
+<script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-7v6xJw1q7v4jvNR3B5M0b12nY9n8N4e+g2e3X2Z7h6w=" crossorigin="anonymous"></script>
+
 <!-- Lightbox2 JS -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/lightbox2/2.11.5/js/lightbox.min.js"></script>
 
 <script>
 /* =================== CONFIG =================== */
-/* Use your working googleusercontent JSON URL here */
-const API_URL = "https://script.googleusercontent.com/macros/echo?user_content_key=AehSKLiFtaKrnlHBJmN7N6wvi_ueZYSjC1oxJE7mQo9UJaYQggSu7TSE2TWk28jtNF9zkFgHnrExrIupi_isbegjRB4Hr994SHWh6GwId55TN34vn40QMa03ADckj8jcgLBSjSaUm0cbQvoclmeCCt5X5GbiD4B8rb9S8KGLC1cYYlzNLlTkBUtg9I8xl1zri72aOfUjrpZIPc-q8xXQ7_pH6OGonm9cNWOrB53F9pUtQJEk8ec61ia0IUsJcLSpKry5jD1NViOptV5LBaqkKanL7pUlwB4I4dk1IHMW92uQ&lib=M_tSu8beZ3qYdOBC3NodhF7yTjQUW6d6j";
+const API_URL = "YOUR_GOOGLEUSERCONTENT_JSON_URL";  // <-- put your googleusercontent echo URL here
 const CACHE_KEY = "driveGallery:v1";
 const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 /* ============================================== */
@@ -51,7 +53,6 @@ const wrap   = document.getElementById("gallery");
 const status = document.getElementById("status");
 const seen   = new Set();
 
-/* === RENDER GALLERY (Next/Prev + Full photo) === */
 function render(items){
   if (!Array.isArray(items)) items = [];
   if (items.length === 0 && wrap.childElementCount === 0){
@@ -64,16 +65,14 @@ function render(items){
     if (!p || !p.id || seen.has(p.id)) return;
     seen.add(p.id);
 
-    // Full image in lightbox (original photo, scaled to viewport)
     const full  = `https://drive.google.com/uc?export=view&id=${p.id}`;
-    // Fast thumbnail for grid cards
     const thumb = `https://drive.google.com/thumbnail?id=${p.id}&sz=w800`;
 
     const a = document.createElement("a");
     a.className = "tile";
     a.href = full;
-    a.setAttribute("data-lightbox","gallery"); // group ALL images → next/prev buttons appear
-    a.setAttribute("data-title",(p.name || "").replace(/\.[^.]+$/,""));
+    a.setAttribute("data-lightbox","gallery");          // group all → next/prev arrows
+    a.setAttribute("data-title",(p.name||"").replace(/\.[^.]+$/,""));
 
     const img = document.createElement("img");
     img.src = thumb;
@@ -84,10 +83,11 @@ function render(items){
     wrap.appendChild(a);
   });
 
+  // Lightbox options (arrows on mobile, wrap-around, etc.)
   if (window.lightbox){
     lightbox.option({
-      wrapAround: true,                  // continuous next/prev
-      alwaysShowNavOnTouchDevices: true, // show arrows on mobile
+      wrapAround: true,
+      alwaysShowNavOnTouchDevices: true,
       fadeDuration: 120,
       imageFadeDuration: 120,
       resizeDuration: 120,
@@ -98,7 +98,7 @@ function render(items){
   }
 }
 
-/* === CACHE HELPERS === */
+/* Simple cache */
 function loadCache(){
   try {
     const s = localStorage.getItem(CACHE_KEY);
@@ -113,9 +113,8 @@ function saveCache(items){
   try { localStorage.setItem(CACHE_KEY, JSON.stringify({ time: Date.now(), items })); } catch {}
 }
 
-/* === FETCH NEW DATA === */
 async function fetchFresh(){
-  const url = API_URL + (API_URL.includes("?") ? "&" : "?") + "t=" + Date.now(); // cache-bust
+  const url = API_URL + (API_URL.includes("?") ? "&" : "?") + "t=" + Date.now();
   const r = await fetch(url, { cache:"no-store" });
   if (!r.ok) throw new Error("HTTP " + r.status);
   const items = await r.json();
@@ -133,11 +132,10 @@ async function fetchFresh(){
   if (status) status.remove();
 }
 
-/* === MAIN START === */
 (function start(){
   const cached = loadCache();
   if (cached){
-    render(cached);               // instant draw
+    render(cached);
     if (status) status.textContent = "Refreshing…";
   }
   fetchFresh().catch(err => {
@@ -150,6 +148,7 @@ async function fetchFresh(){
 </script>
 </body>
 </html>
+
 
 
 

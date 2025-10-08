@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>🐾 Auto Google Drive Gallery</title>
 
-<!-- Lightbox2 CSS -->
+<!-- Lightbox2 CSS (for next/prev/zoom) -->
 <link href="https://cdnjs.cloudflare.com/ajax/libs/lightbox2/2.11.5/css/lightbox.min.css" rel="stylesheet">
 
 <style>
@@ -13,77 +13,67 @@
   * { box-sizing:border-box; }
   body { margin:0; background:var(--bg); color:var(--fg); font-family:system-ui, Arial, sans-serif; }
   header, footer { max-width:1200px; margin:0 auto; padding:16px; }
-  h1 { margin:0; font-size:1.3rem; color:var(--accent); letter-spacing:.3px; }
+  h1 { margin:0; font-size:1.25rem; color:var(--accent); letter-spacing:.2px; }
   .grid {
     max-width:1200px; margin:0 auto; padding:12px 16px 40px;
-    display:grid; gap:12px; grid-template-columns:repeat(auto-fill,minmax(220px,1fr));
+    display:grid; gap:12px; grid-template-columns:repeat(auto-fill, minmax(220px,1fr));
   }
   .tile { display:block; border-radius:12px; overflow:hidden; border:1px solid #222; transition:transform .15s; }
   .tile:hover { transform: translateY(-2px); }
   .tile img { width:100%; height:220px; object-fit:cover; display:block; background:#1a1a1a; }
-  .empty, .error { max-width:1200px; margin:24px auto; padding:12px 16px; opacity:.9; }
-  .empty { color:#bbb; }
-  .error { color:#ffb4b4; }
+  .msg { max-width:1200px; margin:24px auto; padding:12px 16px; opacity:.9; }
+  .msg.info { color:#bbb; }
+  .msg.err  { color:#ffb4b4; }
 </style>
 </head>
 <body>
 <header>
   <h1>🐾 Auto Google Drive Gallery</h1>
-  <div class="empty" id="status">Loading photos…</div>
+  <div id="status" class="msg info">Loading photos…</div>
 </header>
 
-<main id="gallery" class="grid"></main>
+<main id="gallery" class="grid" aria-live="polite"></main>
 
-<footer>Powered by paw prints & love 💜</footer>
+<footer>Powered by paw prints &amp; love 💜</footer>
 
 <!-- jQuery (required by Lightbox2) -->
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"
-        integrity="sha256-eKhayi8LEQwp4NKxN+CfCh+3qOVUtJn3QNZ0TciWLP4="
-        crossorigin="anonymous"></script>
-
+        integrity="sha256-eKhayi8LEQwp4NKxN+CfCh+3qOVUtJn3QNZ0TciWLP4=" crossorigin="anonymous"></script>
 <!-- Lightbox2 JS -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/lightbox2/2.11.5/js/lightbox.min.js"></script>
 
 <script>
-/* ============================================================
-   1) SET THIS to your working googleusercontent JSON endpoint.
-      It must look like:
-      https://script.googleusercontent.com/macros/echo?user_content_key=...&lib=YOUR_DEPLOYMENT_ID
-   ============================================================ */
-const API_URL = "https://script.googleusercontent.com/macros/echo?user_content_key=AehSKLiVXG38utgTsOYe0175zggPzf9Q2ipKRn4QiVXuZMweoSDuSGDLHa0N-ZasQsPcHQROBV3tpfTI3LHIgs3997j_lAdNd3f3IFVS6lyFUr2qb2UDe9psSN1OuF0VKzFv-uXM-I9ZlK2CLi4qzgq7ZPHHn-7F4yS2ukdmOizEjQrL2o2zqbZLXJdt9-6MC2XIewPIxVqagRmQCNGyIlCZHCEkIIbZiL7w8qm3r6CsRk7lO0ryjjzDaqyhKztuIePMJFCUsxc1Ss0y1ICPznRrB6SdBiWX4A&lib=M_tSu8beZ3qYdOBC3NodhF7yTjQUW6d6j";
+/* ================== CONFIG ================== */
+const API_URL =
+  "https://script.googleusercontent.com/macros/echo?user_content_key=AehSKLiVXG38utgTsOYe0175zggPzf9Q2ipKRn4QiVXuZMweoSDuSGDLHa0N-ZasQsPcHQROBV3tpfTI3LHIgs3997j_lAdNd3f3IFVS6lyFUr2qb2UDe9psSN1OuF0VKzFv-uXM-I9ZlK2CLi4qzgq7ZPHHn-7F4yS2ukdmOizEjQrL2o2zqbZLXJdt9-6MC2XIewPIxVqagRmQCNGyIlCZHCEkIIbZiL7w8qm3r6CsRk7lO0ryjjzDaqyhKztuIePMJFCUsxc1Ss0y1ICPznRrB6SdBiWX4A&lib=M_tSu8beZ3qYdOBC3NodhF7yTjQUW6d6j";
 
-/* ====== Cache config (optional) ====== */
+/* optional tiny cache (avoids flicker on reloads) */
 const CACHE_KEY = "driveGallery:v1";
-const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
-const wrap   = document.getElementById("gallery");
-const status = document.getElementById("status");
-const seen   = new Set();
+const gallery = document.getElementById("gallery");
+const statusEl = document.getElementById("status");
 
-/* Render gallery tiles and enable lightbox next/prev */
-function render(items){
+/* Render tiles + enable Lightbox next/prev */
+function render(items = []) {
   if (!Array.isArray(items)) items = [];
-
-  if (items.length === 0 && wrap.childElementCount === 0){
-    if (status) status.textContent = "No images found (yet).";
+  if (items.length === 0 && gallery.childElementCount === 0) {
+    statusEl.textContent = "No images found yet.";
     return;
   }
-  if (status && wrap.childElementCount === 0) status.remove();
+  if (gallery.childElementCount === 0) statusEl.remove();
 
   items.forEach(p => {
-    if (!p || !p.id || seen.has(p.id)) return;
-    seen.add(p.id);
+    if (!p || !p.id) return;
 
-    // Full image for the lightbox
-    const full  = `https://drive.google.com/uc?export=view&id=${p.id}`;
-    // Fast thumbnail for the grid
-    const thumb = `https://drive.google.com/thumbnail?id=${p.id}&sz=w800`;
+    const full  = `https://drive.google.com/uc?export=view&id=${p.id}`;     // full-size
+    const thumb = `https://drive.google.com/thumbnail?id=${p.id}&sz=w900`; // thumb/preview
 
     const a = document.createElement("a");
     a.className = "tile";
     a.href = full;
-    a.setAttribute("data-lightbox","gallery"); // group all → next/prev arrows
-    a.setAttribute("data-title",(p.name || "").replace(/\.[^.]+$/,""));
+    a.setAttribute("data-lightbox", "purple-pack");        // group → Next/Prev arrows
+    a.setAttribute("data-title", (p.name || "").replace(/\.[^.]+$/,""));
 
     const img = document.createElement("img");
     img.src = thumb;
@@ -91,10 +81,10 @@ function render(items){
     img.loading = "lazy";
 
     a.appendChild(img);
-    wrap.appendChild(a);
+    gallery.appendChild(a);
   });
 
-  if (window.lightbox){
+  if (window.lightbox) {
     lightbox.option({
       wrapAround: true,
       alwaysShowNavOnTouchDevices: true,
@@ -108,67 +98,53 @@ function render(items){
   }
 }
 
-/* ---- simple localStorage cache ---- */
-function loadCache(){
-  try {
-    const s = localStorage.getItem(CACHE_KEY);
-    if (!s) return null;
-    const { time, items } = JSON.parse(s);
-    if (!Array.isArray(items)) return null;
-    if (Date.now() - time > CACHE_TTL) return null;
-    return items;
-  } catch { return null; }
-}
-function saveCache(items){
-  try { localStorage.setItem(CACHE_KEY, JSON.stringify({ time: Date.now(), items })); } catch {}
-}
+/* simple localStorage cache */
+const cache = {
+  get() {
+    try {
+      const s = localStorage.getItem(CACHE_KEY);
+      if (!s) return null;
+      const { t, items } = JSON.parse(s);
+      if (Date.now() - t > CACHE_TTL) return null;
+      return items;
+    } catch { return null; }
+  },
+  set(items) {
+    try {
+      localStorage.setItem(CACHE_KEY, JSON.stringify({ t: Date.now(), items }));
+    } catch {}
+  }
+};
 
-/* ---- fetch fresh data from API_URL ---- */
-async function fetchFresh(){
-  if (!API_URL || !/^https:\/\/script\.googleusercontent\.com\/macros\/echo/i.test(API_URL)) {
-    console.error("API_URL is missing or not a googleusercontent echo URL:", API_URL);
+async function fetchFresh() {
+  if (!/^https:\/\/script\.googleusercontent\.com\/macros\/echo/i.test(API_URL)) {
     throw new Error("Bad API_URL");
   }
-
   const url = API_URL + (API_URL.includes("?") ? "&" : "?") + "t=" + Date.now(); // cache-bust
-  console.log("Fetching:", url);
-
-  const r = await fetch(url, { cache:"no-store" });
+  const r = await fetch(url, { cache: "no-store" });
   if (!r.ok) {
     const txt = await r.text().catch(()=>"(no body)");
-    console.error("Fetch failed", r.status, txt);
-    throw new Error("HTTP " + r.status);
+    throw new Error("HTTP " + r.status + " — " + txt.slice(0,200));
   }
-
-  const items = await r.json();
-
-  // If changed, rebuild (simple compare by count; customize if needed)
-  const stamp = localStorage.getItem(CACHE_KEY);
-  const last  = stamp ? JSON.parse(stamp).items : null;
-  const changed = !last || last.length !== (items || []).length;
-
-  if (changed){
-    wrap.innerHTML = "";
-    seen.clear();
-    render(items);
-    saveCache(items);
-  }
-  if (status) status.remove();
+  return r.json();
 }
 
-/* ---- bootstrap ---- */
+/* boot */
 (function start(){
-  const cached = loadCache();
-  if (cached){
+  const cached = cache.get();
+  if (cached) {
     render(cached);
-    if (status) status.textContent = "Refreshing…";
+    statusEl.textContent = "Refreshing…";
   }
-  fetchFresh().catch(err => {
-    if (wrap.childElementCount === 0 && status){
-      status.className = "error";
-      status.textContent = "Failed to load images: " + err.message;
-    }
-  });
+
+  fetchFresh()
+    .then(items => { gallery.innerHTML = ""; render(items); cache.set(items); })
+    .catch(err => {
+      if (gallery.childElementCount === 0) {
+        statusEl.className = "msg err";
+        statusEl.textContent = "Failed to load images: " + err.message;
+      }
+    });
 })();
 </script>
 </body>

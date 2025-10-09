@@ -1,194 +1,213 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>🐾 Pur's Faimly Gallery</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>🐾 Pur's Family Gallery</title>
 
-<link href="https://cdnjs.cloudflare.com/ajax/libs/lightbox2/2.11.5/css/lightbox.min.css" rel="stylesheet">
+  <!-- Perf: preconnect to CDNs -->
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+  <link rel="preconnect" href="https://code.jquery.com" crossorigin>
 
-<style>
-  :root { --bg:#0b0b0b; --fg:#eee; --accent:#8b5cf6; }
-  * { box-sizing:border-box; }
-  body { margin:0; background:var(--bg); color:var(--fg); font-family:system-ui, Arial, sans-serif; }
-  header, footer { max-width:1200px; margin:0 auto; padding:16px; }
-  h1 { margin:0; font-size:1.25rem; color:var(--accent); letter-spacing:.2px; }
-  .grid {
-    max-width:1200px; margin:0 auto; padding:12px 16px 40px;
-    display:grid; gap:12px; grid-template-columns:repeat(auto-fill, minmax(220px,1fr));
-  }
-  .tile { display:block; border-radius:12px; overflow:hidden; border:1px solid #222; transition:transform .15s; }
-  .tile:hover { transform: translateY(-2px); }
-  .tile img { width:100%; height:220px; object-fit:cover; display:block; background:#1a1a1a; }
-  .msg { max-width:1200px; margin:24px auto; padding:12px 16px; opacity:.9; }
-  .msg.info { color:#bbb; }
-  .msg.err  { color:#ffb4b4; }
-</style>
+  <!-- Lightbox2 CSS (for next/prev/zoom) -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/lightbox2/2.11.5/css/lightbox.min.css" rel="stylesheet">
+
+  <style>
+    :root { --bg:#0b0b0b; --fg:#eee; --accent:#8b5cf6; }
+    * { box-sizing:border-box; }
+    html, body { height:100%; }
+    body { margin:0; background:var(--bg); color:var(--fg); font-family:system-ui, Arial, sans-serif; }
+    header, footer { max-width:1200px; margin:0 auto; padding:16px; }
+    h1 { margin:0; font-size:1.25rem; color:var(--accent); letter-spacing:.2px; }
+    .grid {
+      max-width:1200px; margin:0 auto; padding:12px 16px 40px;
+      display:grid; gap:12px; grid-template-columns:repeat(auto-fill, minmax(220px,1fr));
+    }
+    .tile { display:block; border-radius:12px; overflow:hidden; border:1px solid #222; transition:transform .15s; }
+    .tile:hover { transform: translateY(-2px); }
+    .tile img { width:100%; height:220px; object-fit:cover; display:block; background:#1a1a1a; }
+    .msg { max-width:1200px; margin:24px auto; padding:12px 16px; opacity:.9; }
+    .msg.info { color:#bbb; }
+    .msg.err  { color:#ffb4b4; }
+  </style>
 </head>
 <body>
-<header>
-  <h1>🐾 Pur's Faimly Gallery</h1>
-  <div id="status" class="msg info">Loading photos…</div>
-</header>
+  <header>
+    <h1>🐾 Pur's Family Gallery</h1>
+    <div id="status" class="msg info" role="status">Loading photos…</div>
+  </header>
 
-<main id="gallery" class="grid" aria-live="polite"></main>
+  <main id="gallery" class="grid" aria-live="polite"></main>
 
-<footer>Powered by paw prints &amp; love 💜</footer>
+  <footer>Powered by paw prints &amp; love 💜</footer>
 
-<script src="https://code.jquery.com/jquery-3.7.1.min.js" crossorigin="anonymous"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/lightbox2/2.11.5/js/lightbox.min.js"></script>
+  <!-- jQuery (required by Lightbox2) -->
+  <script defer src="https://code.jquery.com/jquery-3.7.1.min.js" crossorigin="anonymous"></script>
+  <!-- Lightbox2 JS -->
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/lightbox2/2.11.5/js/lightbox.min.js"></script>
 
-<script>
-/* Your googleusercontent JSON endpoint (fetch/CORS) */
-const API_URL =
-"https://script.googleusercontent.com/macros/echo?user_content_key=AehSKLiRrxmarZfZEarMaQjxjfV8aFIfb3E7e9xclwld1bpfufZELEcxQCfIEQQ8N_51gFL0l6uIla95_hRGAVYqMe--fi8eJd0-ih-HONcAE8cH2TPO0vUoNo1A6RhN58EK5hMbk3A4f4LDjnc1RzV0rhBFHDfcNDdCsCcetIpkGXAjNt5Eg55JZFcuQBGnsdYlltjV2fGwxAFlry-9iAZhlvTiwhjIi9lAMwAtAUrJ60Kqhwa-8xYn_auHbYXphg&lib=M_tSu8beZ3qYdOBC3NodhF7yTjQUW6d6j";  
+  <script>
+  /* ================== CONFIG ================== */
+  const API_URL =
+ "https://script.googleusercontent.com/macros/echo?user_content_key=AehSKLjIGHxeGFtyQaYy7Nj4gBvLIghpXQRdhgSPgx4Ao9wHy8A_1mrrXez-3MBn43u198_OoeXxk82k8YOENwGofdrC5Te6jSPwxdJImbtNh-Qo1_l3Zqz0gsD0m0GCX1hxHkBS3IyWLOWOt5tpd4g_KBS5DXH3vpXQtFWhJgVljAoqmPS6XIPWNg7yZyhP7HHzdokYi4msCA3upRzgVarxkRJ0X4hdU5oU6EUaSSZQvH7WDB2fbhS0FLAaBvxkzQ&lib=M_tSu8beZ3qYdOBC3NodhF7yTjQUW6d6j";
+   const CACHE_KEY = "driveGallery:v2";
+  const CACHE_TTL = 5 * 60 * 1000; // 3 minutes
 
-const CACHE_KEY = "driveGallery:v2";
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+  const gallery = document.getElementById("gallery");
+  const statusEl = document.getElementById("status");
+  const seen = new Set(); // prevent accidental duplicates
 
-const gallery = document.getElementById("gallery");
-const statusEl = document.getElementById("status");
+  /* ---- helpers ---- */
+  function normalize(data) {
+    let arr = [];
+    if (Array.isArray(data)) arr = data;
+    else if (data && Array.isArray(data.items))  arr = data.items;
+    else if (data && Array.isArray(data.files))  arr = data.files;
+    else if (data && Array.isArray(data.result)) arr = data.result;
+    else if (data && data.data && Array.isArray(data.data)) arr = data.data;
 
-/* ---- utilities ---- */
-function normalize(data) {
-  let arr = [];
-  if (Array.isArray(data)) arr = data;
-  else if (Array.isArray(data.items)) arr = data.items;
-  else if (Array.isArray(data.files)) arr = data.files;
-  else if (data && Array.isArray(data.result)) arr = data.result;
-  else if (data && data.data && Array.isArray(data.data)) arr = data.data;
-
-  return arr.map(x => ({
-    id:   x.id || x.fileId || x.gid || x.ID || x.file_id,
-    name: x.name || x.title || x.filename || ""
-  })).filter(x => x.id);
-}
-
-/* Try multiple Drive endpoints and return the first that loads as an image */
-function testImage(url, timeout = 12000) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    const t = setTimeout(() => {
-      img.src = ""; // stop
-      reject(new Error("timeout"));
-    }, timeout);
-    img.onload = () => { clearTimeout(t); resolve(url); };
-    img.onerror = () => { clearTimeout(t); reject(new Error("error")); };
-    img.referrerPolicy = "no-referrer"; // avoid cookies/referrer issues
-    img.src = url + (url.includes("?") ? "&" : "?") + "ts=" + Date.now();
-  });
-}
-
-/* Pick a working full-size URL for a Drive image id */
-async function pickFullUrl(id) {
-  const candidates = [
-    `https://lh3.googleusercontent.com/d/${id}=w2400`,          // #1 preferred
-    `https://drive.googleusercontent.com/uc?id=${id}`,         // #2 direct
-    `https://drive.google.com/thumbnail?id=${id}&sz=w2000`     // #3 always image
-  ];
-  for (const u of candidates) {
-    try { return await testImage(u); } catch(e) { /* try next */ }
-  }
-  throw new Error("no image endpoint worked");
-}
-
-/* Render the grid + lightbox anchors */
-async function render(items = []) {
-  if (!Array.isArray(items)) items = [];
-  if (items.length === 0 && gallery.childElementCount === 0) {
-    statusEl.className = "msg info";
-    statusEl.textContent = "No images found yet.";
-    return;
-  }
-  if (gallery.childElementCount === 0) statusEl.remove();
-
-  for (const p of items) {
-    const thumb = `https://drive.google.com/thumbnail?id=${p.id}&sz=w900`;
-    // Create anchor immediately so layout is fast…
-    const a = document.createElement("a");
-    a.className = "tile";
-    a.setAttribute("data-lightbox", "purple-pack");
-    a.setAttribute("data-title", (p.name || "").replace(/\.[^.]+$/,""));
-
-    const img = document.createElement("img");
-    img.src = thumb;
-    img.alt = p.name || "Photo";
-    img.loading = "lazy";
-    a.appendChild(img);
-    gallery.appendChild(a);
-
-    // …then resolve a real working full image URL and attach it
-    try {
-      const full = await pickFullUrl(p.id);
-      a.href = full;
-    } catch {
-      a.removeAttribute("data-lightbox");
-      a.href = thumb; // at least open the large thumbnail
-      a.setAttribute("title", "Couldn’t open full image; showing large preview.");
-    }
+    // Map to minimal shape and drop empties / duplicates
+    return arr.map(x => ({
+      id:   x.id || x.fileId || x.gid || x.ID || x.file_id,
+      name: x.name || x.title || x.filename || ""
+    })).filter(x => x.id && !seen.has(x.id));
   }
 
-  if (window.lightbox) {
-    lightbox.option({
-      wrapAround: true,
-      alwaysShowNavOnTouchDevices: true,
-      fadeDuration: 120,
-      imageFadeDuration: 120,
-      resizeDuration: 120,
-      positionFromTop: 40,
-      disableScrolling: true,
-      fitImagesInViewport: true
+  // Load an image URL and resolve only if it truly returns an image
+  function testImage(url, timeout = 12000) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const t = setTimeout(() => { img.src = ""; reject(new Error("timeout")); }, timeout);
+      img.onload = () => { clearTimeout(t); resolve(url); };
+      img.onerror = () => { clearTimeout(t); reject(new Error("error")); };
+      img.referrerPolicy = "no-referrer";
+      img.src = url + (url.includes("?") ? "&" : "?") + "ts=" + Date.now();
     });
   }
-}
 
-/* tiny localStorage cache */
-const cache = {
-  get() {
-    try {
-      const s = localStorage.getItem(CACHE_KEY);
-      if (!s) return null;
-      const { t, items } = JSON.parse(s);
-      if (Date.now() - t > CACHE_TTL) return null;
-      return items;
-    } catch { return null; }
-  },
-  set(items) {
-    try { localStorage.setItem(CACHE_KEY, JSON.stringify({ t: Date.now(), items })); } catch {}
+  // Choose a reliable full-size URL for Drive images
+  async function pickFullUrl(id) {
+    const candidates = [
+      `https://lh3.googleusercontent.com/d/${id}=w2400`,          // very reliable
+      `https://drive.googleusercontent.com/uc?id=${id}`,         // direct media host
+      `https://drive.google.com/thumbnail?id=${id}&sz=w2000`     // always an image (large)
+    ];
+    for (const u of candidates) {
+      try { return await testImage(u); } catch (_) {}
+    }
+    throw new Error("no image endpoint worked");
   }
-};
 
-async function fetchFresh() {
-  if (!/^https:\/\/script\.googleusercontent\.com\/macros\/echo/i.test(API_URL)) {
-    throw new Error("Bad API_URL");
-  }
-  const url = API_URL + (API_URL.includes("?") ? "&" : "?") + "t=" + Date.now();
-  const r = await fetch(url, { cache: "no-store" });
-  if (!r.ok) {
-    const txt = await r.text().catch(()=>"(no body)");
-    throw new Error(`HTTP ${r.status} — ${txt.slice(0,200)}`);
-  }
-  const json = await r.json();
-  return normalize(json);
-}
+  /* ---- render ---- */
+  async function render(items = []) {
+    if (!Array.isArray(items)) items = [];
+    if (items.length === 0 && gallery.childElementCount === 0) {
+      statusEl.className = "msg info";
+      statusEl.textContent = "No images found yet.";
+      return;
+    }
+    if (gallery.childElementCount === 0) statusEl.remove();
 
-/* boot */
-(async function start(){
-  const cached = cache.get();
-  if (cached) { render(cached); statusEl.textContent = "Refreshing…"; }
-  try {
-    const items = await fetchFresh();
-    gallery.innerHTML = "";
-    await render(items);
-    cache.set(items);
-  } catch (err) {
-    console.error(err);
-    if (gallery.childElementCount === 0) {
-      statusEl.className = "msg err";
-      statusEl.textContent = "Failed to load images: " + err.message;
+    for (const p of items) {
+      if (!p || !p.id || seen.has(p.id)) continue;
+      seen.add(p.id);
+
+      const thumb = `https://drive.google.com/thumbnail?id=${p.id}&sz=w900`;
+
+      const a = document.createElement("a");
+      a.className = "tile";
+      a.setAttribute("data-lightbox", "purple-pack");
+      a.setAttribute("data-title", (p.name || "").replace(/\.[^.]+$/,""));
+
+      const img = document.createElement("img");
+      img.src = thumb;
+      img.alt = p.name || "Photo";
+      img.loading = "lazy";
+
+      a.appendChild(img);
+      gallery.appendChild(a);
+
+      // Resolve a working full image URL asynchronously
+      try {
+        const full = await pickFullUrl(p.id);
+        a.href = full;
+      } catch {
+        // graceful fallback: still open a large preview
+        a.removeAttribute("data-lightbox");
+        a.href = thumb;
+        a.title = "Couldn’t open full image; showing large preview.";
+      }
+    }
+
+    if (window.lightbox) {
+      lightbox.option({
+        wrapAround: true,
+        alwaysShowNavOnTouchDevices: true,
+        fadeDuration: 120,
+        imageFadeDuration: 120,
+        resizeDuration: 120,
+        positionFromTop: 40,
+        disableScrolling: true,
+        fitImagesInViewport: true
+      });
     }
   }
-})();
-</script>
+
+  /* ---- tiny cache ---- */
+  const cache = {
+    get() {
+      try {
+        const s = localStorage.getItem(CACHE_KEY);
+        if (!s) return null;
+        const { t, items } = JSON.parse(s);
+        if (!Array.isArray(items)) return null;
+        if (Date.now() - t > CACHE_TTL) return null;
+        return items;
+      } catch { return null; }
+    },
+    set(items) {
+      try { localStorage.setItem(CACHE_KEY, JSON.stringify({ t: Date.now(), items })); } catch {}
+    }
+  };
+
+  async function fetchFresh() {
+    if (!/^https:\/\/script\.googleusercontent\.com\/macros\/echo/i.test(API_URL)) {
+      throw new Error("Bad API_URL");
+    }
+    const url = API_URL + (API_URL.includes("?") ? "&" : "?") + "t=" + Date.now();
+    const r = await fetch(url, { cache: "no-store" });
+    if (!r.ok) {
+      const txt = await r.text().catch(() => "(no body)");
+      throw new Error(`HTTP ${r.status} — ${txt.slice(0,200)}`);
+    }
+    const json = await r.json();
+    return normalize(json);
+  }
+
+  /* ---- boot ---- */
+  (async function start() {
+    const cached = cache.get();
+    if (cached && cached.length) { render(cached); statusEl.textContent = "Refreshing…"; }
+    try {
+      const items = await fetchFresh();
+      // If fresh differs from cache length, rebuild
+      if (!cached || cached.length !== items.length) {
+        gallery.innerHTML = "";
+        seen.clear();
+        await render(items);
+        cache.set(items);
+      } else {
+        // still update hrefs if needed
+        await render(items);
+      }
+    } catch (err) {
+      console.error(err);
+      if (gallery.childElementCount === 0) {
+        statusEl.className = "msg err";
+        statusEl.textContent = "Failed to load images: " + err.message;
+      }
+    }
+  })();
+  </script>
 </body>
 </html>
